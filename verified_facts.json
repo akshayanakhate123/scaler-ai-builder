@@ -6,6 +6,6 @@
     "ai_engineering": {"price_inr": "~3.5L", "modules": "TODO_SCRAPE", "note": "referenced by leads; confirm exact curriculum from scaler.com"}
   },
   "alumni_outcomes": "TODO_SCRAPE — only use outcomes actually published on scaler.com",
-  "financing": "TODO_SCRAPE — EMI / income-share style options; confirm exact terms",
+  "financing": "EMI options with a ~₹20,000 upfront commitment (published on scaler.com program pages)",
   "entrance_test": "clearing the entrance test is the gate to the second call and enrolment"
 }
