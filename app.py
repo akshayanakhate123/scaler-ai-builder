@@ -3,6 +3,8 @@
 Step 1: smoke test (WhatsApp text + PDF end to end).
 Step 2: grounding (verified facts + scraped scaler.com cache).
 Step 3: pre-call nudge (BDA-facing, no approval gate).
+Step 4: post-call personalised PDF + approval gate (structured input).
+Step 5: audio input path (transcribe -> same PDF pipeline).
 """
 
 import base64
@@ -13,6 +15,7 @@ import streamlit.components.v1 as components
 import grounding
 import nudge as nudge_mod
 import pdf_gen
+import stt
 from whatsapp import upload_to_cloudinary, send_whatsapp_text, send_whatsapp_pdf
 
 st.set_page_config(page_title="Scaler AI Builder", page_icon="📞")
@@ -110,13 +113,37 @@ def _render_into_state(content):
 
 lead_profile = st.text_area("Lead profile", height=140, key="pdf_profile",
                             placeholder="Paste the lead's profile…")
-transcript = st.text_area("Call transcript", height=180, key="pdf_transcript",
-                          placeholder="Paste the call transcript…")
+
+mode = st.radio("Input mode", ["Structured (transcript)", "Audio (recording)"],
+                horizontal=True, key="pdf_mode")
+
+if mode.startswith("Structured"):
+    transcript = st.text_area("Call transcript", height=180, key="pdf_transcript",
+                              placeholder="Paste the call transcript…")
+else:
+    audio = st.file_uploader("Call recording", type=["mp3", "m4a", "wav"], key="pdf_audio")
+    if st.button("Transcribe audio"):
+        if audio is None:
+            st.warning("Upload an audio file first.")
+        else:
+            with st.spinner("Transcribing with Groq Whisper…"):
+                try:
+                    # Only produces text; it then feeds the SAME pipeline below.
+                    st.session_state["pdf_audio_tx_review"] = stt.transcribe(
+                        audio.getvalue(), audio.name)
+                except Exception as e:  # noqa: BLE001
+                    st.error(str(e))
+    # Show the transcript to the BDA before generating (editable so they can fix it).
+    transcript = st.text_area(
+        "Transcript (from audio — review/edit before generating)",
+        height=180, key="pdf_audio_tx_review",
+    )
+
 lead_to = st.text_input("Lead's WhatsApp number", value=TO, key="pdf_lead_to")
 
 if st.button("Generate PDF", type="primary"):
-    if not lead_profile.strip() or not transcript.strip():
-        st.warning("Paste both a lead profile and a transcript.")
+    if not lead_profile.strip() or not (transcript or "").strip():
+        st.warning("Need a lead profile and a transcript (paste one, or transcribe an audio file).")
     else:
         _clear_pdf_state()
         with st.spinner("Extracting questions → grounding answers → rendering…"):
