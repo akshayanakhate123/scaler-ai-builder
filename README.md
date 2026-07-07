@@ -99,8 +99,19 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Create `.streamlit/secrets.toml` (copy `.streamlit/secrets.toml.example` and fill in real
-keys — this file is gitignored and must never be committed), then:
+Create `.streamlit/secrets.toml` (gitignored — never commit it) with your own keys:
+
+```toml
+GEMINI_API_KEY = "..."
+GROQ_API_KEY = "..."
+TWILIO_ACCOUNT_SID = "..."
+TWILIO_AUTH_TOKEN = "..."
+TWILIO_WHATSAPP_FROM = "whatsapp:+14155238886"
+CLOUDINARY_URL = "cloudinary://<api_key>:<api_secret>@<cloud_name>"
+MY_TEST_WHATSAPP = "whatsapp:+91XXXXXXXXXX"
+```
+
+Then run:
 
 ```powershell
 streamlit run app.py
@@ -122,6 +133,10 @@ so you're inside the 24-hour messaging window.
 3. In the app's **Settings → Secrets**, paste the same keys as your local `secrets.toml`.
 4. `requirements.txt` and `packages.txt` are picked up automatically; the first build installs
    the WeasyPrint system libraries.
+
+> **Cloudinary gotcha:** new Cloudinary accounts block delivery of `.pdf` URLs by default.
+> Enable **Settings → Security → "Allow delivery of PDF and ZIP files"**, or WhatsApp can't
+> fetch the attachment (the URL returns 401 and Twilio reports error 63019).
 
 ---
 
