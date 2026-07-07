@@ -37,6 +37,10 @@ refresh_grounding()
 TO = st.secrets.get("MY_TEST_WHATSAPP", "")
 
 st.title("Scaler AI Builder")
+st.caption(
+    "Two AI features for the Scaler BDA, both over WhatsApp: a **pre-call nudge** "
+    "(prep for the BDA) and a **post-call personalised PDF** (trust-builder for the lead)."
+)
 
 if not TO:
     st.error(
@@ -45,17 +49,33 @@ if not TO:
     )
     st.stop()
 
-st.caption(
-    f"Test recipient: **{TO}**. Twilio sandbox note: this number must have messaged "
-    "the sandbox in the last 24h or sends will fail."
-)
+# --- ① Onboarding: single WhatsApp destination for everything the app sends ---
+if "wa_number" not in st.session_state:
+    st.session_state["wa_number"] = TO
+
+with st.container(border=True):
+    st.subheader("① Setup — where WhatsApp messages land")
+    wa_number = st.text_input(
+        "WhatsApp number (evaluator / BDA)",
+        key="wa_number",
+        help="Both the pre-call nudge and the approved post-call PDF are sent to this number.",
+    )
+    st.caption(
+        "📲 **Opt in first:** on WhatsApp, send **join major-moment** to "
+        "**+1 415 523 8886** (the Twilio sandbox). Twilio only delivers within 24h of "
+        "your last message to it."
+    )
 
 
 # ===========================================================================
 # Pre-call nudge (SPEC §6a) — BDA-facing, NO approval gate
 # ===========================================================================
-st.header("Pre-call nudge")
-st.caption("Internal prep for the BDA. Sends straight to the BDA — no approval gate.")
+st.divider()
+st.header("② Pre-call nudge → the BDA")
+st.caption(
+    "🔵 **BDA-facing** · internal prep for the call · **no approval gate** — "
+    "it sends straight to the BDA."
+)
 
 profile = st.text_area(
     "Lead profile",
@@ -77,21 +97,24 @@ if st.button("Generate nudge", type="primary"):
 
 if st.session_state.get("nudge_text"):
     st.markdown(st.session_state["nudge_text"])
-    if st.button("Send to BDA WhatsApp"):
+    if st.button("📤 Send nudge to BDA"):
         try:
-            sid = send_whatsapp_text(TO, st.session_state["nudge_text"])
-            st.success("Sent to BDA.")
-            st.code(sid)
+            sid = send_whatsapp_text(wa_number, st.session_state["nudge_text"])
+            st.success(f"✅ Nudge sent to the BDA at {wa_number}.")
+            st.caption(f"Twilio message SID: `{sid}`")
         except Exception as e:  # noqa: BLE001
-            st.error(f"Send failed: {e}")
+            st.error(f"❌ Send to {wa_number} failed: {e}")
 
 
 # ===========================================================================
 # Post-call personalised PDF (SPEC §6b/§6c/§7) — LEAD-FACING, approval gated
 # ===========================================================================
 st.divider()
-st.header("Post-call personalised PDF")
-st.caption("Lead-facing. Nothing sends without **Approve**.")
+st.header("③ Post-call PDF → the lead")
+st.caption(
+    "🟢 **Lead-facing** · routed through you as the BDA: **Approve / Edit / Skip** · "
+    "nothing sends to the lead without **Approve**."
+)
 
 
 def _clear_pdf_state():
@@ -137,7 +160,7 @@ else:
         height=180, key="pdf_audio_tx_review",
     )
 
-lead_to = st.text_input("Lead's WhatsApp number", value=TO, key="pdf_lead_to")
+st.caption(f"On **Approve**, the PDF + covering message go to the number set in Setup: **{wa_number}**.")
 
 if st.button("Generate PDF", type="primary"):
     if not lead_profile.strip() or not (transcript or "").strip():
@@ -194,7 +217,7 @@ if st.session_state.get("pdf_content"):
         st.session_state["pdf_editing"] = True
     if skip:
         _clear_pdf_state()
-        st.info("Discarded — nothing sent.")
+        st.info("🚫 Skipped — nothing was sent to the lead.")
         st.stop()
 
     if st.session_state.get("pdf_editing"):
@@ -215,16 +238,19 @@ if st.session_state.get("pdf_content"):
 
     if approve:
         if not st.session_state.get("pdf_bytes"):
-            st.error("No rendered PDF to send (render failed here — try on the deployed app).")
+            st.error(
+                "❌ No rendered PDF to send yet — WeasyPrint render is unavailable locally. "
+                "This works on the deployed app."
+            )
         else:
-            try:
-                url = upload_to_cloudinary(st.session_state["pdf_bytes"])
-                sid_pdf = send_whatsapp_pdf(lead_to, url,
-                                            caption=content.get("headline", "Your Scaler follow-up"))
-                sid_txt = send_whatsapp_text(lead_to, st.session_state["pdf_cover"])
-                st.success("Sent to the lead.")
-                st.code(f"Cloudinary: {url}")
-                st.code(f"PDF SID: {sid_pdf}")
-                st.code(f"Message SID: {sid_txt}")
-            except Exception as e:  # noqa: BLE001
-                st.error(f"Send failed: {e}")
+            with st.spinner(f"Uploading PDF and sending to {wa_number}…"):
+                try:
+                    url = upload_to_cloudinary(st.session_state["pdf_bytes"])
+                    sid_pdf = send_whatsapp_pdf(wa_number, url,
+                                                caption=content.get("headline", "Your Scaler follow-up"))
+                    sid_txt = send_whatsapp_text(wa_number, st.session_state["pdf_cover"])
+                    st.success(f"✅ Approved — PDF + covering message sent to the lead at {wa_number}.")
+                    st.caption(f"PDF link: {url}")
+                    st.caption(f"Twilio SIDs — PDF: `{sid_pdf}` · message: `{sid_txt}`")
+                except Exception as e:  # noqa: BLE001
+                    st.error(f"❌ Send to {wa_number} failed: {e}")
