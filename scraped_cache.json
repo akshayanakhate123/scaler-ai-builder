@@ -1,7 +1,7 @@
 {
   "scaler_academy": {
     "url": "https://www.scaler.com/academy/",
-    "fetched_at": "2026-07-07 15:21:48",
+    "fetched_at": "2026-07-07 16:07:36",
     "page_text_chars": 14260,
     "snippets": [
       "Modern Software and AI Engineering.",
@@ -93,7 +93,7 @@
   },
   "data_science_ml": {
     "url": "https://www.scaler.com/data-science-course/",
-    "fetched_at": "2026-07-07 15:21:49",
+    "fetched_at": "2026-07-07 16:07:38",
     "page_text_chars": 15865,
     "snippets": [
       "Modern Data Science and ML with specialisation in AI",
@@ -206,7 +206,7 @@
   },
   "devops_cloud": {
     "url": "https://www.scaler.com/devops-course/",
-    "fetched_at": "2026-07-07 15:21:50",
+    "fetched_at": "2026-07-07 16:07:39",
     "page_text_chars": 13375,
     "snippets": [
       "DevOps, Cloud & AI Platform Engineering",
@@ -308,7 +308,7 @@
   },
   "_home": {
     "url": "https://www.scaler.com/",
-    "fetched_at": "2026-07-07 15:21:51",
+    "fetched_at": "2026-07-07 16:07:41",
     "page_text_chars": 10632,
     "snippets": [
       "The investment that compounds. Strong technical foundations, AI integrated at every stage, and a curriculum that evolves as the market does",
