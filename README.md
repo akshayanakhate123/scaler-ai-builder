@@ -1,19 +1,36 @@
 # Scaler AI Builder
 
-**Two AI features for a phone-sales funnel, delivered over WhatsApp.**
+## What you built
 
-Sales teams live on the phone. Two moments decide whether a lead converts: the *30 seconds
-before* a call (does the rep sound like they know this person?) and the *follow-up after*
-(does the lead get something that actually speaks to their doubts, or generic marketing?).
-This project automates both — without ever letting an AI message a customer on its own.
+Two AI features for Scaler's phone-sales funnel, both delivered on WhatsApp. Before a
+call, the app generates a short, scannable pre-call nudge — who this lead is, their
+likely persona, angles that'll land, objections to expect, an opening hook, all tagged
+`[fact]`/`[inferred]`/`[missing]` — and sends it straight to the BDA's WhatsApp, no
+approval needed since it's internal. After a call (from a pasted transcript or an
+uploaded audio recording), it extracts the lead's genuine open questions, answers them
+using only grounded Scaler facts (scraped from scaler.com plus a verified-facts file,
+never fabricated), and renders a personalised 2–3 page PDF whose colour, headline, and
+emphasis shift with the lead's own goal and tone — Rohan's ROI-driven brief reads and
+looks nothing like Meera's reassurance-driven one. That PDF is lead-facing, so it's
+routed through the BDA for **Approve / Edit / Skip**; nothing reaches the lead without
+an explicit Approve.
 
-1. **Pre-call nudge → the sales rep.** A short, scannable prep brief pushed to the rep's
-   WhatsApp right before they dial, so the opening doesn't sound canned.
-2. **Post-call personalised PDF → the lead.** A 2–3 page follow-up tailored to *that lead's*
-   goals and objections, sent only after the rep taps **Approve** — nothing customer-facing
-   fires automatically.
+## One failure
 
-Everything runs on free tiers and deploys to a single always-on Streamlit app.
+The model paraphrased a grounded stat — scraped from scaler.com as "wage premium
+doubled FROM 25%" — into "doubled TO 25%" in Rohan's follow-up PDF. The number was
+grounded, but its meaning was inverted. Fix: quote grounded numbers verbatim or omit
+them; the PDF evidence block now drops external market/salary stats entirely.
+
+## Scale plan
+
+At 100k leads/month (~3,300/day) two things break first. **WhatsApp throughput**: the
+Twilio sandbox is single-number and rate-limited, and most sends would fall outside the
+24-hour free-form window — production needs a paid WhatsApp Business number with
+approved template messages. **The approval gate**: every lead-facing PDF needs a human
+Approve, which doesn't scale past a few hundred BDAs. The fix isn't removing the gate —
+it's making it selective, auto-clearing low-risk PDFs (no unanswered pricing/outcome
+questions, high grounding confidence) and routing only ambiguous ones to a human.
 
 ---
 
@@ -24,7 +41,7 @@ Lead profile + call transcript (or audio recording)
         │
         ├─►  transcribe (if audio)  ──►  Groq Whisper
         │
-        ├─►  pre-call nudge   ──►  Gemini 2.5 Flash  ──►  WhatsApp to the rep
+        ├─►  pre-call nudge   ──►  Gemini 2.5 Flash  ──►  WhatsApp to the BDA (no gate)
         │
         └─►  personalised PDF ──►  Gemini → grounded content
                                    → WeasyPrint (HTML+CSS → PDF)
@@ -35,14 +52,12 @@ Lead profile + call transcript (or audio recording)
 
 Two design rules the whole thing is built around:
 
-- **Never fabricate facts.** All product-specific claims come from a verified facts file;
-  if something isn't verified, the copy says "we'll confirm on the next call" instead of
-  inventing it.
-- **Personalisation is the point.** The follow-up for a ROI-driven lead should look and read
-  visibly different from one for a security-conscious lead — different content *and* different
-  visual accent.
-
----
+- **Never fabricate facts.** All product-specific claims come from a verified facts
+  file plus a scaler.com scrape; if something isn't grounded, the copy says "we'll
+  confirm on the next call" instead of inventing it.
+- **Personalisation is the point.** The follow-up for a ROI-driven lead reads and
+  looks visibly different from one for a security-conscious lead — different content
+  *and* a different visual accent, both derived from that lead's own goal and tone.
 
 ## Tech stack
 
@@ -57,39 +72,21 @@ Two design rules the whole thing is built around:
 | WhatsApp delivery | **Twilio** WhatsApp API |
 | Grounding | `requests` + BeautifulSoup + a verified-facts file |
 
----
-
-## Project status
-
-This is being built in stages. **Step 1 is done and deployable:** a working Streamlit app that
-proves the two riskiest end-to-end paths with *real* API calls (no mocks):
-
-- ✅ Streamlit → Twilio → WhatsApp **text** lands on a real phone.
-- ✅ Streamlit → WeasyPrint **PDF** → Cloudinary → Twilio → WhatsApp **document** lands on a real phone.
-
-Roadmap (in order): grounding & verified facts → pre-call nudge → personalised PDF generator →
-audio transcription → approval gate & onboarding UI. `nudge.py`, `pdf_gen.py`, `stt.py`, and
-`grounding.py` are currently stubs with TODOs marking where each stage plugs in.
-
----
-
 ## Repository layout
 
 ```
-app.py               Streamlit UI (currently the step-1 smoke test)
+app.py               Streamlit UI: onboarding, pre-call nudge, post-call PDF + gate
 whatsapp.py          Cloudinary upload + Twilio WhatsApp send
 llm.py               Gemini call with Groq fallback
-prompts.py           All prompt strings, in one place
-grounding.py         Verified-facts loader + scraper   (stub)
-nudge.py             Pre-call nudge generator          (stub)
-pdf_gen.py           Personalised PDF pipeline         (stub)
-stt.py               Audio transcription               (stub)
-verified_facts.json  The only source of product claims
+prompts.py           Base prompt strings (guardrails appended at call time in nudge.py/pdf_gen.py)
+grounding.py         Verified-facts loader + scaler.com scraper + retrieve(topic)
+nudge.py             Pre-call nudge generator
+pdf_gen.py           extract_questions -> answer_questions -> render_pdf pipeline
+stt.py               Audio transcription (Groq Whisper)
+verified_facts.json  The only source of product claims (plus scraped_cache.json)
 requirements.txt     Python deps
 packages.txt         System libs WeasyPrint needs on Linux
 ```
-
----
 
 ## Run it locally
 
@@ -118,29 +115,27 @@ streamlit run app.py
 ```
 
 > **Note on WeasyPrint + Windows:** WeasyPrint needs GTK/Pango/Cairo native libraries. On
-> Linux (and Streamlit Cloud) these are installed automatically via `packages.txt`. On Windows
-> the PDF button needs the GTK runtime installed separately — but the text button works either
-> way, and the full PDF path works on the deployed app.
+> Linux (and Streamlit Cloud) these are installed automatically via `packages.txt`. On
+> Windows the PDF render step needs the GTK runtime installed separately — the app falls
+> back to an HTML preview locally and renders the real PDF on the deployed app.
 
-Before sending, message the Twilio WhatsApp sandbox from your test phone (send its join code)
-so you're inside the 24-hour messaging window.
+Before sending, message the Twilio WhatsApp sandbox from your test phone (send its join
+code) so you're inside the 24-hour messaging window.
 
 ## Deploy (Streamlit Community Cloud)
 
 1. Push to GitHub — `.gitignore` keeps `secrets.toml` out of the repo.
-2. On [share.streamlit.io](https://share.streamlit.io), create an app pointing at this repo,
-   branch `main`, main file `app.py`.
+2. On [share.streamlit.io](https://share.streamlit.io), create an app pointing at this
+   repo, branch `main`, main file `app.py`.
 3. In the app's **Settings → Secrets**, paste the same keys as your local `secrets.toml`.
-4. `requirements.txt` and `packages.txt` are picked up automatically; the first build installs
-   the WeasyPrint system libraries.
+4. `requirements.txt` and `packages.txt` are picked up automatically; the first build
+   installs the WeasyPrint system libraries.
 
-> **Cloudinary gotcha:** new Cloudinary accounts block delivery of `.pdf` URLs by default.
-> Enable **Settings → Security → "Allow delivery of PDF and ZIP files"**, or WhatsApp can't
-> fetch the attachment (the URL returns 401 and Twilio reports error 63019).
-
----
+> **Cloudinary gotcha:** new Cloudinary accounts block delivery of `.pdf` URLs by
+> default. Enable **Settings → Security → "Allow delivery of PDF and ZIP files"**, or
+> WhatsApp can't fetch the attachment (the URL returns 401 and Twilio reports error 63019).
 
 ## Security
 
-No credentials are committed. `.streamlit/secrets.toml` is gitignored, and all keys are read at
-runtime from Streamlit secrets. If you fork this, use your own API keys.
+No credentials are committed. `.streamlit/secrets.toml` is gitignored, and all keys are
+read at runtime from Streamlit secrets. If you fork this, use your own API keys.
