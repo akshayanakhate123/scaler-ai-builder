@@ -7,8 +7,6 @@ Step 4: post-call personalised PDF + approval gate (structured input).
 Step 5: audio input path (transcribe -> same PDF pipeline).
 """
 
-import base64
-
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -169,21 +167,18 @@ if st.session_state.get("pdf_content"):
             st.write(f"- {q}")
 
     st.subheader("Preview")
+    # Streamlit can't reliably embed a PDF inline (it shows a broken-image box), so the
+    # on-screen preview is the same content rendered as HTML — identical to what
+    # WeasyPrint turns into the PDF. The Download PDF button provides the real file.
+    components.html(pdf_gen._build_html(content), height=560, scrolling=True)
     if st.session_state.get("pdf_bytes"):
-        b64 = base64.b64encode(st.session_state["pdf_bytes"]).decode()
-        st.markdown(
-            f'<iframe src="data:application/pdf;base64,{b64}" width="100%" '
-            'height="520" style="border:1px solid #ddd;border-radius:8px;"></iframe>',
-            unsafe_allow_html=True,
-        )
         st.download_button("Download PDF", data=st.session_state["pdf_bytes"],
                            file_name="scaler_followup.pdf", mime="application/pdf")
     else:
-        st.warning(
-            "PDF render unavailable here (WeasyPrint needs GTK — works on Streamlit "
-            f"Cloud). Showing HTML preview instead. [{st.session_state.get('pdf_render_error','')[:80]}]"
+        st.caption(
+            "The PDF file renders on Streamlit Cloud (WeasyPrint needs GTK, "
+            "unavailable locally). The preview above is the exact content."
         )
-        components.html(pdf_gen._build_html(content), height=560, scrolling=True)
 
     st.write("**Covering WhatsApp message (draft):**")
     st.info(st.session_state.get("pdf_cover", ""))
@@ -233,50 +228,3 @@ if st.session_state.get("pdf_content"):
                 st.code(f"Message SID: {sid_txt}")
             except Exception as e:  # noqa: BLE001
                 st.error(f"Send failed: {e}")
-
-
-# ===========================================================================
-# Step-1 smoke test (kept for regression checks)
-# ===========================================================================
-with st.expander("Smoke test: WhatsApp text + PDF (step 1)"):
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("Send test text", use_container_width=True):
-            try:
-                sid = send_whatsapp_text(
-                    TO,
-                    "✅ Scaler AI Builder — text test. Streamlit → Twilio → WhatsApp works.",
-                )
-                st.success("Text sent.")
-                st.code(sid)
-            except Exception as e:  # noqa: BLE001
-                st.error(f"Text send failed: {e}")
-
-    with col2:
-        if st.button("Send test PDF", use_container_width=True):
-            try:
-                from weasyprint import HTML
-
-                html = """
-                <html><head><meta charset="utf-8"></head>
-                <body style="font-family: sans-serif; padding: 40px;">
-                  <h1 style="color:#2440d1;">Scaler AI Builder</h1>
-                  <p>Test PDF — WeasyPrint → Cloudinary → WhatsApp via Twilio.</p>
-                </body></html>
-                """
-                pdf_bytes = HTML(string=html).write_pdf()
-                st.success("PDF generated.")
-                url = upload_to_cloudinary(pdf_bytes)
-                st.code(url)
-                sid = send_whatsapp_pdf(TO, url, caption="Scaler AI Builder — test PDF ✅")
-                st.success("PDF sent.")
-                st.code(sid)
-                st.download_button(
-                    "Download the PDF locally",
-                    data=pdf_bytes,
-                    file_name="scaler_test.pdf",
-                    mime="application/pdf",
-                )
-            except Exception as e:  # noqa: BLE001
-                st.error(f"PDF path failed: {e}")
