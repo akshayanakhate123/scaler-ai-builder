@@ -1,5 +1,7 @@
 # Scaler AI Builder
 
+**▶ Live app:** https://scaler-ai-builder-2cslumcdymtwl57pw4ecx8.streamlit.app/
+
 ## What you built
 
 Two AI features for Scaler's phone-sales funnel, both delivered on WhatsApp. Before a
