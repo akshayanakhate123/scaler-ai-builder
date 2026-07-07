@@ -17,6 +17,7 @@ All credentials are read from st.secrets.
 
 import io
 import uuid
+from urllib.parse import urlparse
 
 import requests
 import streamlit as st
@@ -30,27 +31,49 @@ import cloudinary.uploader
 
 def _configure_cloudinary():
     # CLOUDINARY_URL format: cloudinary://<api_key>:<api_secret>@<cloud_name>
-    cloudinary.config(cloudinary_url=st.secrets["CLOUDINARY_URL"].strip())
+    # NOTE: cloudinary.config(cloudinary_url=...) does NOT parse the URL (it only
+    # stores it), so we parse it ourselves and pass the fields explicitly.
+    parsed = urlparse(st.secrets["CLOUDINARY_URL"].strip())
+    cloudinary.config(
+        cloud_name=parsed.hostname,
+        api_key=parsed.username,
+        api_secret=parsed.password,
+        secure=True,
+    )
 
 
 def upload_to_cloudinary(pdf_bytes, public_id=None):
-    """Upload raw PDF bytes to Cloudinary and return a public secure_url.
+    """Upload raw PDF bytes to Cloudinary and return a public secure_url that
+    ends in `.pdf` and serves as application/pdf.
 
-    Uses resource_type="raw" so Cloudinary serves the file untouched with a
-    `.pdf` extension, which is what Twilio/WhatsApp need to treat it as a
-    document attachment.
+    Twilio raises error 63019 ("Media failed to download") when the media URL
+    has no `.pdf` extension / proper content-type. The reliable fix with
+    resource_type="raw" is to bake the `.pdf` extension directly into the
+    public_id, so the delivered secure_url ends in `.pdf`. If for some reason
+    that doesn't yield a `.pdf` URL, we fall back to resource_type="auto"
+    (Cloudinary's PDF/image pipeline), which returns a `.pdf` secure_url too.
     """
     _configure_cloudinary()
     if public_id is None:
-        public_id = f"scaler/test_{uuid.uuid4().hex[:12]}"
-    result = cloudinary.uploader.upload(
-        io.BytesIO(pdf_bytes),
-        resource_type="raw",
-        public_id=public_id,
-        format="pdf",
-        overwrite=True,
-    )
-    return result["secure_url"]
+        public_id = f"scaler_pdf_{uuid.uuid4().hex[:12]}"
+
+    def _upload(resource_type, pid):
+        result = cloudinary.uploader.upload(
+            io.BytesIO(pdf_bytes),
+            resource_type=resource_type,
+            public_id=pid,
+            overwrite=True,
+        )
+        return result["secure_url"]
+
+    # Primary: raw upload with the extension in the public_id -> URL ends in .pdf.
+    url = _upload("raw", f"{public_id}.pdf")
+    if not url.lower().endswith(".pdf"):
+        # Fallback: let Cloudinary auto-detect the PDF; its secure_url ends .pdf.
+        url = _upload("auto", public_id)
+
+    print(f"[cloudinary] upload secure_url: {url}")
+    return url
 
 
 # ---------------------------------------------------------------------------
