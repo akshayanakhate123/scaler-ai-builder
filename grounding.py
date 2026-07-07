@@ -112,15 +112,19 @@ def _relevant_snippets(chunks):
     return out
 
 
-def scrape_scaler(urls=None, timeout=15) -> dict:
+def scrape_scaler(urls=None, timeout=15, write=True) -> dict:
     """Fetch program pages, extract visible curriculum/outcome text, cache it.
 
-    Writes scraped_cache.json (never verified_facts.json). Returns a report of
-    which URLs succeeded and which were skipped (with the reason). Never raises
-    on a bad page and never fabricates content.
+    Merge-starts from the existing scraped_cache.json snapshot: a program that
+    scrapes cleanly is refreshed, but a program that fails/times out keeps its
+    committed snapshot entry — so a partial or fully-failed run never REDUCES
+    grounding coverage. Writes scraped_cache.json (never verified_facts.json).
+    Returns a report of which URLs succeeded/were skipped. Never raises on a bad
+    page and never fabricates content.
     """
     urls = urls or SCRAPE_URLS
-    cache, report = {}, {"succeeded": [], "skipped": []}
+    cache = _load_cache()  # fall back to the committed snapshot for any failures
+    report = {"succeeded": [], "skipped": []}
 
     for program, url in urls.items():
         try:
@@ -162,8 +166,9 @@ def scrape_scaler(urls=None, timeout=15) -> dict:
             {"program": program, "url": url, "page_chars": total_text, "snippets": len(snippets)}
         )
 
-    with open(_CACHE_PATH, "w", encoding="utf-8") as f:
-        json.dump(cache, f, indent=2, ensure_ascii=False)
+    if write:
+        with open(_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, ensure_ascii=False)
 
     return report
 
