@@ -16,6 +16,9 @@ env/
 .scaler_cache/
 *.log
 
+# Assignment brief — keep the private brief out of the public repo
+*.pdf
+
 # OS / editor
 .DS_Store
 Thumbs.db
