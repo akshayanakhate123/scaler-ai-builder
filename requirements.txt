@@ -1,0 +1,8 @@
+streamlit
+google-generativeai
+groq
+weasyprint
+requests
+beautifulsoup4
+cloudinary
+python-dotenv

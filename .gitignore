@@ -1,0 +1,18 @@
+# Secrets — never commit real keys
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.env
+
+# Scraper / runtime cache
+.scaler_cache/
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db

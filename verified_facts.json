@@ -1,0 +1,11 @@
+{
+  "programs": {
+    "scaler_academy": {"length": "12 months", "focus": "software engineering", "audience": "0-7 YoE", "price_inr": "~3.5L", "modules": "TODO_SCRAPE"},
+    "data_science_ml": {"length": "12+ months", "modules": "TODO_SCRAPE"},
+    "devops_cloud": {"length": "9 months", "modules": "TODO_SCRAPE"},
+    "ai_engineering": {"price_inr": "~3.5L", "modules": "TODO_SCRAPE", "note": "referenced by leads; confirm exact curriculum from scaler.com"}
+  },
+  "alumni_outcomes": "TODO_SCRAPE — only use outcomes actually published on scaler.com",
+  "financing": "TODO_SCRAPE — EMI / income-share style options; confirm exact terms",
+  "entrance_test": "clearing the entrance test is the gate to the second call and enrolment"
+}
