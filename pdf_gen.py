@@ -13,6 +13,7 @@ next call. Every section ladders toward the lead taking the ENTRANCE TEST.
 
 import html as _html
 import json
+import re
 
 import prompts
 import grounding
@@ -25,8 +26,12 @@ _PDF_GUARDRAIL = (
     "curriculum, modules, outcomes, salary/package numbers, placement %, or prices. "
     "If a needed detail isn't in the references, address the concern honestly and say "
     "the exact figure/detail will be confirmed on the next call.\n"
-    "- No salary/placement guarantees or specific numbers — market figures in the "
-    "references are general context, NOT Scaler outcomes.\n"
+    "- NUMBERS: quote a grounded statistic VERBATIM or don't cite a specific number "
+    "at all. NEVER paraphrase a number in a way that changes its value or direction "
+    "(e.g. do not turn 'doubled from 25%' into 'doubled to 25%'). If unsure, omit the "
+    "figure and defer to the next call.\n"
+    "- No salary/placement guarantees or specific numbers — market figures are "
+    "general context, NOT Scaler outcomes.\n"
     "- Every section must build trust toward the lead taking the ENTRANCE TEST. "
     "'why_now' MUST frame the entrance test as the low-risk next step for THIS lead.\n"
     "- 'accent_theme' is ONE lowercase word derived from THIS lead's goal + tone "
@@ -59,9 +64,18 @@ def extract_questions(transcript: str) -> dict:
 # §6c — grounded, personalised PDF content
 # ---------------------------------------------------------------------------
 
+# External market/salary stats are dropped from the PDF evidence entirely: they are
+# not Scaler outcomes and paraphrasing them risks distorting a number (see NOTES.md).
+_MARKET_STAT = re.compile(
+    r"(\$|₹|\bLPA\b|\bCTC\b|\bpackage\b|salary|wage|premium|median|\bhike\b|\bjump\b|\d+\s*%)",
+    re.I,
+)
+
+
 def _evidence(profile: str, questions, lead_goal: str) -> str:
     """Assemble the allowed reference set: crisp verified facts + grounded
-    scraped snippets relevant to the questions / goal / profile."""
+    scraped snippets relevant to the questions / goal / profile. Scraped snippets
+    that look like external market/salary statistics are excluded."""
     verified_lines = []
     for path, val in grounding._flatten_facts(grounding.load_facts()):
         s = str(val)
@@ -74,9 +88,12 @@ def _evidence(profile: str, questions, lead_goal: str) -> str:
         if not probe:
             continue
         for m in grounding.retrieve(probe).get("matches", []):
-            if m["source"] == "scraped" and m["text"] not in seen:
-                seen.add(m["text"])
-                snippets.append(m["text"])
+            if m["source"] != "scraped" or m["text"] in seen:
+                continue
+            if _MARKET_STAT.search(m["text"]):  # drop market/salary stats
+                continue
+            seen.add(m["text"])
+            snippets.append(m["text"])
 
     block = "VERIFIED FACTS (source of truth — safe to state):\n" + "\n".join(verified_lines)
     if snippets:
